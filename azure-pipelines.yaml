@@ -1,0 +1,57 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  azureSubscription: 'YourAzureSubscriptionName'
+  appName: 'YourAppName'
+  resourceGroupName: 'YourResourceGroupName'
+  location: 'YourAzureRegion'
+  nodeVersion: '14.x'
+
+stages:
+- stage: Build
+  jobs:
+  - job: BuildJob
+    displayName: 'Build Job'
+    steps:
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '$(nodeVersion)'
+      displayName: 'Install Node.js'
+
+    - script: |
+        npm install
+        npm run build
+      displayName: 'Build Application'
+
+    - task: PublishBuildArtifacts@1
+      inputs:
+        pathtoPublish: 'dist'
+        artifactName: 'drop'
+      displayName: 'Publish Artifact'
+
+- stage: Deploy
+  jobs:
+  - deployment: DeployJob
+    displayName: 'Deploy Job'
+    environment: 'YourAzureEnvironment'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureRmWebAppDeployment@4
+            inputs:
+              ConnectionType: 'AzureRM'
+              azureSubscription: $(azureSubscription)
+              appType: 'webAppLinux'
+              WebAppName: $(appName)
+              packageForLinux: '$(Pipeline.Workspace)/drop/*.zip'
+              RuntimeStack: 'NODE|14.x'
+              StartupCommand: 'npm start'
+              ScriptType: 'Inline Script'
+              InlineScript: |
+                npm install --production
+              enableCustomDeployment: true
